@@ -85,16 +85,53 @@ N.vessels <- data.frame(Exhumace=c(nrow(exh.1),nrow(exh.2)),
 
 colSums(N.vessels); rowSums(N.vessels); sum(rowSums(N.vessels))
 
+
+##################################################
+# TreeClim
+
+library(treeclim); library(dplR)
+
+temp <- readXL("D:/tumajer/#Brizy/Rskript/Kopisty_HB.xlsx", rownames=FALSE, header=TRUE, na="", sheet="teploty", stringsAsFactors=TRUE) # Vetsina datovych podkladu
+prec <- readXL("D:/tumajer/#Brizy/Rskript/Kopisty_HB.xlsx", rownames=FALSE, header=TRUE, na="", sheet="srazky", stringsAsFactors=TRUE) # Vetsina datovych podkladu
+klima <- list(temp=temp, prec=prec)
+
+climate.1 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/1.xlsx", rownames=TRUE, header=TRUE, na="", sheet="treeclim", stringsAsFactors=TRUE) 
+detrend.1 <- detrend(climate.1, method="ModNegExp", pos.slope=T, make.plot=T)
+chron.1 <- chron(detrend.1[c(1:14),]) # Zjistuji klimaticky signal pouze pro obdobi pred disturbanci
+dcc(chron.1, prec, boot="exact", selection=c(-8:9))
+dcc(chron.1, temp, boot="exact", selection=c(-8:9))
+
+climate.2 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2.xlsx", rownames=TRUE, header=TRUE, na="", sheet="treeclim", stringsAsFactors=TRUE) 
+detrend.2 <- detrend(climate.2, method="ModNegExp", pos.slope=T, make.plot=T)
+chron.2 <- chron(detrend.2[c(1:15),]) # Zjistuji klimaticky signal pouze pro obdobi pred disturbanci
+chron.ref <- chron(detrend.2[,c(1:16)])
+dcc(chron.2, prec, boot="exact", selection=c(-8:9))
+dcc(chron.2, temp, boot="exact", selection=c(-8:9))
+
+dcc(chron.ref, prec, boot="exact", selection=c(-8:9))
+dcc(chron.ref, temp, boot="exact", selection=c(-8:9))
+
+plot(chron.1)
+plot(chron.2)
+plot(chron.ref)
+
+# Do modelu pouzit - srazky curAUG + ? curAPR-curMAY
+#		   - teploty prevAug-prevOCT + ? prevNOV-prevDEC
 ##################################################
 # Modely
+
+klimadata <- readXL("D:/tumajer/#Brizy/Rskript/Kopisty_HB.xlsx", rownames=FALSE, header=TRUE, na="", sheet="MODEL", stringsAsFactors=TRUE) # klimaticke prumery
 
 Data.1 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/1.xlsx", rownames=FALSE, header=TRUE, na="", sheet="series", stringsAsFactors=TRUE) # Vetsina datovych podkladu
 cambial.age <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/1.xlsx", rownames=FALSE, header=TRUE, na="", sheet="camb.age2", stringsAsFactors=TRUE) # Kambialni stari jednotlivych letokruhu
 Data.1 <- merge(Data.1, cambial.age, by=c("SampleId", "Year"))
+Data.1 <- merge(Data.1, klimadata, by=c("Year"), all.x=T)
+
 
 Data.2 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2.xlsx", rownames=FALSE, header=TRUE, na="", sheet="series", stringsAsFactors=TRUE) # Vetsina datovych podkladu
 cambial.age <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2.xlsx", rownames=FALSE, header=TRUE, na="", sheet="camb.age2", stringsAsFactors=TRUE) # Kambialni stari jednotlivych letokruhu
 Data.2 <- merge(Data.2, cambial.age, by=c("SampleId", "Year"))
+Data.2 <- merge(Data.2, klimadata, by=c("Year"), all.x=T)
 
 
 # Dilci deformace
@@ -111,6 +148,10 @@ Data.Nak.2 <- subset(Data.2, subset=(Data.2$Deformation=="nak"))
 Data.Zas.2 <- subset(Data.2, subset=(Data.2$Deformation=="zas"))
 Data.Ref.2 <- subset(Data.2, subset=(Data.2$Deformation=="ref"))
 
+with(Data.1, Hist(LumenArea, groups=Deformation, scale="frequency", breaks="Sturges", col="darkgray"))
+with(Data.2, Hist(LumenArea, groups=Deformation, scale="frequency", breaks="Sturges", col="darkgray"))
+
+
 ##################################################
 ################# MODELY #########################
 ##################################################
@@ -118,21 +159,35 @@ Data.Ref.2 <- subset(Data.2, subset=(Data.2$Deformation=="ref"))
 library(lme4)
 library(piecewiseSEM)
 
+input.data <- Data.Exh.1
+
 MODEL <- function(input.data) {
 
-	LM <- lmer(LumenArea ~ 1 + CA + (1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+	LM <- lmer(LumenArea ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
 	print(summary(LM))
 	print(fixef(LM)); print(ranef(LM, condVar=T))
 	anova(LM)	
 
 	limit.osy <- max(max(na.omit(predict(LM))), max(na.omit(input.data$LumenArea)))
-	plot(predict(LM)~input.data$LumenArea, xlim=c(0, limit.osy), ylim=c(0, limit.osy), xlab="observation", ylab="model"); abline(lm(predict(LM)~input.data$LumenArea), col="red")
 	
+	par(mfrwo=c(2,2))
+	plot(predict(LM)~input.data$LumenArea, xlim=c(0, limit.osy), ylim=c(0, limit.osy), xlab="observation", ylab="model"); abline(lm(predict(LM)~input.data$LumenArea), col="red")
+	#qqnorm(resid(LM, type = "normalized"))
+	plot(LM)
+
 	print("Marginal a Conditional R2:"); sem.model.fits(LM)
 
 }
 
 MODEL(Data.Exh.1)
+
+var(input.data$LumenArea)
+Var_Random_effect <- as.numeric(VarCorr(LM))
+Var_Residual <- attr(VarCorr(LM), "sc")^2
+Var_Fix_effect <- var(predict(glm(LumenArea ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT, data=input.data, method="REML")))
+
+sum(Var_Random_effect) + Var_Fix_effect + Var_Residual
+
 MODEL(Data.Zas.1)
 MODEL(Data.Dek.1)
 MODEL(Data.Nak.1)
@@ -151,5 +206,68 @@ MODEL(rbind(Data.Dek.1, Data.Dek.2))
 MODEL(rbind(Data.Nak.1, Data.Nak.2))
 MODEL(rbind(Data.Jiz.1, Data.Jiz.2))
 
+
+##########################################
+#### Urceni plochy mereneho polygonu #####
+##########################################
+library(concaveman); library(sp)
+
+AREA.1 <- experiment1[c("SampleId", "Cell.", "Year", "LumenArea", "HorizontalPosition", "VerticalPosition")]
+
+
+
+# Pokus
+subset <- subset(AREA.1, subset=AREA.1$SampleId=="2_jizJ_1" & AREA.1$Year==2010) # Vyber konkretniho letokruhu
+
+body <- data.matrix(subset[c("HorizontalPosition", "VerticalPosition")])
+obrys <- concaveman(body, concavity=3) # Pomoci funkce vyberu obrysove body podel okraju merene casti letokruhu
+
+Ps <- Polygon(obrys, hole=F)
+Ps1 <- SpatialPolygons(list(Polygons(list(Ps), ID = "a"))) # Vytvorim SpatialPolygon
+
+if ((Ps@area == Ps1@polygons[[1]]@area) & (Ps@area == Ps1@polygons[[1]]@Polygons[[1]]@area)) {rozloha <- Ps@area}
+
+plot(body); title(paste("Vzorek", "2_jizJ_1", "v roce", "2010"))
+plot(Ps1, axes=T, add=T)
+
+# Priprava automatizace
+######################################
+
+Plocha1 <- PLOCHA.LETOKRUHU(experiment1)
+
+PLOCHA.LETOKRUHU <- function (VSTUP) {
+
+VYSTUP <- data.frame(Id=unique(paste(VSTUP$SampleId, VSTUP$Year)), SampleId=NA, Year=NA, Plocha=NA) # Priprava vystupniho datoveho souboru
+VYSTUP["SampleId"] <- substring(VYSTUP$Id, 1, 8); VYSTUP["Year"] <- as.numeric(substring(VYSTUP$Id, 10, 13))
+VYSTUP <- VYSTUP[c("SampleId", "Year", "Plocha")]
+
+for (vzorek in unique(as.character(VSTUP$SampleId))) {
+
+	subset.1 <- subset(VSTUP, subset=VSTUP$SampleId==vzorek)
+	
+	for (rok in unique(subset.1$Year)) {
+		
+		subset.2 <- subset(subset.1, subset=subset.1$Year==rok) 
+
+		body <- data.matrix(subset.2[c("HorizontalPosition", "VerticalPosition")])
+		obrys <- concaveman(body, concavity=3) # Pomoci funkce vyberu obrysove body podel okraju merene casti letokruhu
+
+		Ps <- Polygon(obrys, hole=F)
+		Ps1 <- SpatialPolygons(list(Polygons(list(Ps), ID = "a"))) # Vytvorim SpatialPolygon
+
+		if ((Ps@area == Ps1@polygons[[1]]@area) & (Ps@area == Ps1@polygons[[1]]@Polygons[[1]]@area)) {rozloha <- Ps@area} # Ze spatial polygon vytahnu udaj o rozloze
+		ulozit <- VYSTUP$SampleId==vzorek & VYSTUP$Year==rok # Kam se ma vypoctena hodnota rozlohy ulozit
+		VYSTUP[ulozit, 3] <- rozloha
+
+		plot(body); title(paste("Vzorek", vzorek, "v roce", rok)) # Vykresleni a ulozeni grafu
+		plot(Ps1, axes=T, add=T)
+		png(filename=paste("D:/tumajer/#Brizy/Rskript/Obrazky_letokruhu/1/", vzorek, ":", rok, ".png", sep=""))
+		dev.off()
+
+		}
+	}
+
+return(VYSTUP)
+}
 
 
