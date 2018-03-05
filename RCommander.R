@@ -247,6 +247,7 @@ for (vzorek in unique(as.character(VSTUP$SampleId))) {
 	
 	for (rok in unique(subset.1$Year)) {
 		
+		rozloha <- NA
 		subset.2 <- subset(subset.1, subset=subset.1$Year==rok) 
 
 		body <- data.matrix(subset.2[c("HorizontalPosition", "VerticalPosition")])
