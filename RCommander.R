@@ -302,29 +302,28 @@ MODEL <- function(input.data) {
 	Var_PREC <- data.frame(VarCorr(LM.la_PREC)); colnames(Var_PREC) <- c("factor", "var1", "var2", "Variance_PREC", "Std.Dev_PREC")
 	Var_TEMP <- data.frame(VarCorr(LM.la_TEMP)); colnames(Var_TEMP) <- c("factor", "var1", "var2", "Variance_TEMP", "Std.Dev_TEMP")
 
-	Var_TREE <- data.frame(VarCorr(LM.la_TREE))
-	Var_PHASE <- data.frame(VarCorr(LM.la_PHASE))
-	Var_ORIENTATION <- data.frame(VarCorr(LM.la_ORIENTATION))
-	Var_LEVEL <- data.frame(VarCorr(LM.la_LEVEL))
+	Var_TREE <- data.frame(VarCorr(LM.la_TREE)); colnames(Var_TREE) <- c("factor", "var1", "var2", "Variance_TREE", "Std.Dev_TREE")
+	Var_PHASE <- data.frame(VarCorr(LM.la_PHASE)); colnames(Var_PHASE) <- c("factor", "var1", "var2", "Variance_PHASE", "Std.Dev_PHASE")
+	Var_ORIENTATION <- data.frame(VarCorr(LM.la_ORIENTATION)); colnames(Var_ORIENTATION) <- c("factor", "var1", "var2", "Variance_ORIENTATION", "Std.Dev_ORIENTATION")
+	Var_LEVEL <- data.frame(VarCorr(LM.la_LEVEL)); colnames(Var_LEVEL) <- c("factor", "var1", "var2", "Variance_LEVEL", "Std.Dev_LEVEL")
 
-
-	Var_full <- cbind(Var_full[-c(3)], Var_CA[c(4:5)], Var_PREC[c(4:5)], Var_TEMP[c(4:5)])
+	# Problem s rnepresne prirazenymi NA radkz
+	Var_full <- cbind(Var_full[-c(3)], Var_CA[c(4:5)], Var_PREC[c(4:5)], Var_TEMP[c(4:5)], rbind(NA, Var_TREE[c(4:5)]), rbind(NA, Var_PHASE[c(4:5)]), rbind(NA, Var_ORIENTATION[c(4:5)]), rbind(NA, Var_LEVEL[c(4:5)]))
 	effects[1,3] <- 100 * (Var_full[5, "Variance_CA"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_CA"]  
 	effects[2,3] <- 100 * (Var_full[5, "Variance_PREC"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_PREC"]  
 	effects[3,3] <- 100 * (Var_full[5, "Variance_TEMP"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_TEMP"] 
 
-	effects[4,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_TREE[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
-	effects[5,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_PHASE[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
-	effects[6,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_ORIENTATION[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
-	effects[7,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_LEVEL[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
-
+	effects[4,3] <- 100 * (Var_full[5, "Variance_TREE"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_TREE"]
+	effects[5,3] <- 100 * (Var_full[5, "Variance_PHASE"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_PHASE"]
+	effects[6,3] <- 100 * (Var_full[5, "Variance_ORIENTATION"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_ORIENTATION"]
+	effects[7,3] <- 100 * (Var_full[5, "Variance_LEVEL"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_LEVEL"]
 
 
 return(list(fixf=fixf, ranf=ranf, detremination=R2, effects=effects))
 
 }
 
-
+### Vyzkouset hodnoceni efect sizes pomoci postupu zalozeneho na vyhozeni jednoho z prediktoru a otestovani, o kolik procent se meni pseudo-R2 
 
 MODEL(Data.Exh.1)
 MODEL(Data.Zas.1)
