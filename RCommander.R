@@ -19,18 +19,44 @@ experiment2 <- rbind(exh.2, dek.2, jiz.2, nak.2, zas.2, ref.2)
 
 ###################################################################
 
+
 AGREGACE <- function(vstup, save=F, kod="") {
 
     # Kody jednotlivych stromu, vyskovych urovni
 	vstup$TreeId <- substr(vstup$SampleId, 1, 5)
 	vstup$LevelId <- substr(vstup$SampleId, 1, 6)
-
+    
    attach(vstup)
+ 
+    # Dopocet hydraulic conductivity (Kh, [kg*m*Mpa-1*s-1]) jednotlivych bunek
+    # Viz Scholz (2013) a Gebauer, Volarik (2013)
+    #         prevod um->m   plochalumenu2      hustota H20         viskozita vody
+	vstup$Kh <- (1e-24) * (vstup$LumenArea^2) * 998.205 / (8*pi* 1.002e-9)
 
-    # Vypocet prumernych hodnot za serii
+    # Vypocet prumernych hodnot parametru za serii
 	vstup.serie <- aggregate(vstup[c(4:18)], by=list(SampleId=SampleId, Year=Year), FUN=mean)
 	vstup.serie$Deformation <- substr(vstup.serie$SampleId, 3, 5)
 	vstup.serie <- vstup.serie[order(vstup.serie$Deformation, vstup.serie$SampleId, vstup.serie$Year), ]
+
+    # Vypocet poctu cev v letokruhu za serii
+	vstup.serie2 <- aggregate(vstup[5], by=list(SampleId=SampleId, Year=Year), FUN=NROW)
+	colnames(vstup.serie2) <- c("SampleId", "Year", "NVessel")
+	vstup.serie <- merge(vstup.serie, vstup.serie2, by=c("SampleId", "Year"))
+
+    # Vypocet merene plochy v ramci letokruhu za serii (pomoci nize definovane funkce)
+	plocha <- PLOCHA.LETOKRUHU(vstup)
+	vstup.serie <- merge(vstup.serie, plocha, by=c("SampleId", "Year"))
+
+    # Vypocet celkove hydraulic conductivity vsech bunek ...
+	vstup.serie3 <- aggregate(vstup["Kh"], by=list(SampleId=SampleId, Year=Year), FUN=sum)
+	colnames(vstup.serie3) <- c("SampleId", "Year", "Kh")
+	vstup.serie <- merge(vstup.serie, vstup.serie3, by=c("SampleId", "Year"))
+    
+    # ...a specific hydraulic conductivity (sum(Kh)/plocha, [kg*m-1*Mpa-1*s-1])
+    # VE VYPOCTU ZVETSENA PLOCHA O 10% !!!!!
+	vstup.serie$Ks <- vstup.serie$Kh / (1.1 * vstup.serie$MeasuredArea * 1e-12)
+
+##############################################################################################
 
     # Vypocet prumernych hodnot za vyskovou uroven
 	vstup.level <- aggregate(vstup[c(4:18)], by=list(LevelId=LevelId, Year=Year), FUN=mean)
@@ -52,6 +78,54 @@ if (save==T) {
 
 }
 
+
+##########################################
+#### Urceni plochy mereneho polygonu #####
+##########################################
+library(concaveman); library(sp)
+
+##########################################
+
+Plocha1 <- PLOCHA.LETOKRUHU(experiment1)
+Plocha2 <- PLOCHA.LETOKRUHU(experiment2)
+
+PLOCHA.LETOKRUHU <- function (VSTUP) {
+
+VYSTUP <- data.frame(Id=unique(paste(VSTUP$SampleId, VSTUP$Year)), SampleId=NA, Year=NA, MeasuredArea=NA) # Priprava vystupniho datoveho souboru
+VYSTUP["SampleId"] <- substring(VYSTUP$Id, 1, 8); VYSTUP["Year"] <- as.numeric(substring(VYSTUP$Id, 10, 13))
+VYSTUP <- VYSTUP[c("SampleId", "Year", "MeasuredArea")]
+
+for (vzorek in unique(as.character(VSTUP$SampleId))) {
+
+	subset.1 <- subset(VSTUP, subset=VSTUP$SampleId==vzorek)
+	
+	for (rok in unique(subset.1$Year)) {
+		
+		rozloha <- NA
+		subset.2 <- subset(subset.1, subset=subset.1$Year==rok) 
+
+		body <- data.matrix(subset.2[c("HorizontalPosition", "VerticalPosition")])
+		obrys <- concaveman(body, concavity=10) # Pomoci funkce vyberu obrysove body podel okraju merene casti letokruhu
+
+		Ps <- Polygon(obrys, hole=F)
+		Ps1 <- SpatialPolygons(list(Polygons(list(Ps), ID = "a"))) # Vytvorim SpatialPolygon
+
+		if ((Ps@area == Ps1@polygons[[1]]@area) & (Ps@area == Ps1@polygons[[1]]@Polygons[[1]]@area)) {rozloha <- Ps@area} # Ze spatial polygon vytahnu udaj o rozloze
+		ulozit <- VYSTUP$SampleId==vzorek & VYSTUP$Year==rok # Kam se ma vypoctena hodnota rozlohy ulozit
+		VYSTUP[ulozit, 3] <- rozloha
+
+		#plot(body); title(paste("Vzorek", vzorek, "v roce", rok)) # Vykresleni a ulozeni grafu
+		#plot(Ps1, axes=T, add=T)
+		#dev.copy(png, filename=paste("D:/tumajer/#Brizy/Rskript/Obrazky_letokruhu/2/", vzorek, "y", rok, ".png", sep=""))
+		#dev.off()
+
+		}
+	}
+
+return(VYSTUP)
+}
+
+
 ##################################################################
 
 
@@ -60,49 +134,23 @@ experiment1.ag <- AGREGACE(experiment1, save=T, kod="1_")
 experiment2.ag <- AGREGACE(experiment2, save=T, kod="2_")
 
 
+######################################################
+# TreeClim 
 
-##################################################################
-
-# Pocet zmerenych cev
-exh.1.ag <- AGREGACE(exh.1, save=T, kod="1exh_")
-jiz.1.ag <- AGREGACE(jiz.1, save=T, kod="1jiz_")
-dek.1.ag <- AGREGACE(dek.1, save=T, kod="1dek_")
-nak.1.ag <- AGREGACE(nak.1, save=T, kod="1nak_")
-zas.1.ag <- AGREGACE(zas.1, save=T, kod="1zas_")
-exh.2.ag <- AGREGACE(exh.2, save=T, kod="2exh_")
-jiz.2.ag <- AGREGACE(jiz.2, save=T, kod="2jiz_")
-dek.2.ag <- AGREGACE(dek.2, save=T, kod="2dek_")
-nak.2.ag <- AGREGACE(nak.2, save=T, kod="2nak_")
-zas.2.ag <- AGREGACE(zas.2, save=T, kod="2zas_")
-ref.2.ag <- AGREGACE(ref.2, save=T, kod="2ref_")
-
-N.vessels <- data.frame(Exhumace=c(nrow(exh.1),nrow(exh.2)),
-			 Zasypani=c(nrow(zas.1),nrow(zas.2)), 
-			 Jizva=c(nrow(jiz.1),nrow(jiz.2)),
-			 Dekapitace=c(nrow(dek.1),nrow(dek.2)),
-			 Nakloneni=c(nrow(nak.1),nrow(nak.2)),
-			 Referencni=c(0,nrow(ref.2))	)
-
-colSums(N.vessels); rowSums(N.vessels); sum(rowSums(N.vessels))
-
-
-##################################################
-# TreeClim
-
-library(treeclim); library(dplR)
+library(treeclim); library(dplR); library(dendroTools)
 
 temp <- readXL("D:/tumajer/#Brizy/Rskript/Kopisty_HB.xlsx", rownames=FALSE, header=TRUE, na="", sheet="teploty", stringsAsFactors=TRUE) # Vetsina datovych podkladu
 prec <- readXL("D:/tumajer/#Brizy/Rskript/Kopisty_HB.xlsx", rownames=FALSE, header=TRUE, na="", sheet="srazky", stringsAsFactors=TRUE) # Vetsina datovych podkladu
 klima <- list(temp=temp, prec=prec)
 
 climate.1 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/1.xlsx", rownames=TRUE, header=TRUE, na="", sheet="treeclim", stringsAsFactors=TRUE) 
-detrend.1 <- detrend(climate.1, method="ModNegExp", pos.slope=T, make.plot=T)
+detrend.1 <- detrend(climate.1, method="Mean", pos.slope=T, make.plot=T)
 chron.1 <- chron(detrend.1[c(1:14),]) # Zjistuji klimaticky signal pouze pro obdobi pred disturbanci
 dcc(chron.1, prec, boot="exact", selection=c(-8:9))
 dcc(chron.1, temp, boot="exact", selection=c(-8:9))
 
 climate.2 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2.xlsx", rownames=TRUE, header=TRUE, na="", sheet="treeclim", stringsAsFactors=TRUE) 
-detrend.2 <- detrend(climate.2, method="ModNegExp", pos.slope=T, make.plot=T)
+detrend.2 <- detrend(climate.2, method="Mean", pos.slope=T, make.plot=T)
 chron.2 <- chron(detrend.2[c(1:15),]) # Zjistuji klimaticky signal pouze pro obdobi pred disturbanci
 chron.ref <- chron(detrend.2[,c(1:16)])
 dcc(chron.2, prec, boot="exact", selection=c(-8:9))
@@ -114,6 +162,45 @@ dcc(chron.ref, temp, boot="exact", selection=c(-8:9))
 plot(chron.1)
 plot(chron.2)
 plot(chron.ref)
+
+######################################################
+# dendroTools 
+
+chron.1 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/1.xlsx", rownames=TRUE, header=TRUE, na="", sheet="dendroTools", stringsAsFactors=TRUE)
+chron.1 <- rbind(chron.1, data.frame(VLA=NA, TVA=NA, VD=NA, Ks=NA)); rownames(chron.1) <- c(1999:2016)
+chron.2 <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2.xlsx", rownames=TRUE, header=TRUE, na="", sheet="dendroTools", stringsAsFactors=TRUE)
+
+vla <- cbind(chron.1["VLA"], chron.2["VLA"])
+tva <- cbind(chron.1["TVA"], chron.2["TVA"])
+vd <- cbind(chron.1["VD"], chron.2["VD"])
+Ks <- cbind(chron.1["Ks"], chron.2["Ks"])
+
+prec.daily <- readXL("D:/tumajer/#Brizy/Rskript/Kopisty_klim_2000-2016.xlsx", rownames=TRUE, header=TRUE, na="", sheet="srazky", stringsAsFactors=TRUE)
+temp.daily <- readXL("D:/tumajer/#Brizy/Rskript/Kopisty_klim_2000-2016.xlsx", rownames=TRUE, header=TRUE, na="", sheet="teploty", stringsAsFactors=TRUE)
+
+vla.prec <- daily_response(response=vla[c(1:14),], env_data=prec.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+tva.prec <- daily_response(response=tva[c(1:14),], env_data=prec.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+vs.prec <- daily_response(response=vd[c(1:14),], env_data=prec.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+Ks.prec <- daily_response(response=Ks[c(1:14),], env_data=prec.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+
+# vla.temp <- daily_response(response=vla[c(1:14),], env_data=temp.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+# tva.temp <- daily_response(response=tva[c(1:14),], env_data=temp.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+# vs.temp <- daily_response(response=vd[c(1:14),], env_data=temp.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+# Ks.temp <- daily_response(response=Ks[c(1:14),], env_data=temp.daily, lower_limit = 21, upper_limit = 270, method="lm", previous_year=T, row_names_subset=T, remove_insignificant=T, alpha=0.05, temporal_stability_check="progressive", k=5)
+
+
+dr <- vla.prec
+dr <- tva.prec
+dr <- vs.prec
+dr <- Ks.prec
+
+	dr$plot_extreme # nejvyssi korelace
+	dr$plot_heatmap # barevny graf
+	# dr$plot_specific
+	dr$optimized_return
+	dr$temporal_stability
+
+
 
 # Do modelu pouzit - srazky curAUG + ? curAPR-curMAY
 #		   - teploty prevAug-prevOCT + ? prevNOV-prevDEC
@@ -133,6 +220,8 @@ cambial.age <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2.xlsx", rownames=FALSE
 Data.2 <- merge(Data.2, cambial.age, by=c("SampleId", "Year"))
 Data.2 <- merge(Data.2, klimadata, by=c("Year"), all.x=T)
 
+
+plot(Data.1$Ks ~ Data.1$LumenArea)
 
 # Dilci deformace
 Data.Dek.1 <- subset(Data.1, subset=(Data.1$Deformation=="dek"|Data.1$Deformation=="dex"))
@@ -163,31 +252,81 @@ input.data <- Data.Exh.1
 
 MODEL <- function(input.data) {
 
-	LM <- lmer(LumenArea ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
-	print(summary(LM))
-	print(fixef(LM)); print(ranef(LM, condVar=T))
-	anova(LM)	
+   	LM.la <- lmer(LumenArea ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+   	LM.tva <- lmer(TVA_perc ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+   	LM.vd <- lmer(VD_mm2 ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+   	LM.ks <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
 
-	limit.osy <- max(max(na.omit(predict(LM))), max(na.omit(input.data$LumenArea)))
+
+	ranf <- merge(data.frame(ranef(LM.la)), data.frame(ranef(LM.tva)), by=c("grpvar", "term", "grp"), all=T)
+	ranf <- merge(ranf, data.frame(ranef(LM.vd)), by=c("grpvar", "term", "grp"), all=T)
+	ranf <- merge(ranf, data.frame(ranef(LM.ks)), by=c("grpvar", "term", "grp"), all=T)
+	colnames(ranf) <- c("grpvar", "term", "grp", "LA", "TVA", "VD", "Ks")
+
+	fixf <- cbind(data.frame(fixef(LM.la)), data.frame(fixef(LM.tva)), data.frame(fixef(LM.vd)), data.frame(fixef(LM.ks)))
+	colnames(fixf) <- c("LA", "TVA", "VD", "Ks")
+
+	R2 <- cbind(t(sem.model.fits(LM.la)), t(sem.model.fits(LM.tva)), t(sem.model.fits(LM.vd)), t(sem.model.fits(LM.ks)))
+	colnames(R2) <- c("LA", "TVA", "VD", "Ks")
+
+
+#####################################################################################
+
+	limit.osy.la <- max(max(na.omit(predict(LM.la))), max(na.omit(input.data$LumenArea))) 
+	limit.osy.tva <- max(max(na.omit(predict(LM.tva))), max(na.omit(input.data$TVA_perc)))
+	limit.osy.vd <- max(max(na.omit(predict(LM.vd))), max(na.omit(input.data$VD_mm2))) 
+	limit.osy.ks <- max(max(na.omit(predict(LM.ks))), max(na.omit(input.data$Ks)))
 	
-	par(mfrwo=c(2,2))
-	plot(predict(LM)~input.data$LumenArea, xlim=c(0, limit.osy), ylim=c(0, limit.osy), xlab="observation", ylab="model"); abline(lm(predict(LM)~input.data$LumenArea), col="red")
-	#qqnorm(resid(LM, type = "normalized"))
-	plot(LM)
+	par(mfrow=c(2,2))
+	plot(predict(LM.la)~input.data$LumenArea, xlim=c(0, limit.osy.la), ylim=c(0, limit.osy.la), xlab="observation", ylab="model"); abline(lm(predict(LM.la)~input.data$LumenArea), col="red"); title("Mean Lumen Area [um2]")
+	plot(predict(LM.tva)~input.data$TVA_perc, xlim=c(0, limit.osy.tva), ylim=c(0, limit.osy.tva), xlab="observation", ylab="model"); abline(lm(predict(LM.tva)~input.data$TVA_perc), col="red"); title("Total Lumen Area [% or mm2/mm2]")
+	plot(predict(LM.vd)~input.data$VD_mm2, xlim=c(0, limit.osy.vd), ylim=c(0, limit.osy.vd), xlab="observation", ylab="model"); abline(lm(predict(LM.vd)~input.data$VD_mm2), col="red"); title("Vessel Density [1/mm2]")
+	plot(predict(LM.ks)~input.data$Ks, xlim=c(0, limit.osy.ks), ylim=c(0, limit.osy.ks), xlab="observation", ylab="model"); abline(lm(predict(LM.ks)~input.data$Ks), col="red"); title("Specific conductivity [kg*m-1*Mpa-1*s-1]")
 
-	print("Marginal a Conditional R2:"); sem.model.fits(LM)
+
+#####################################################################################
+# Vypocet lokalnich predictor effects podle Peugh (2010): Journal of School Psychology 48: 85-112
+
+	effects <- data.frame(Variable=c("CA", "PREC", "TEMP", "TREE", "PHASE", "ORIENTATION", "LEVEL"), Type=c("fixed", "fixed", "fixed", "random", "random", "random", "random"), Effect=NA)
+
+ 	LM.la_CA <- lmer(Ks ~ 1 +  PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+ 	LM.la_PREC <- lmer(Ks ~ 1 + CA  + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+ 	LM.la_TEMP <- lmer(Ks ~ 1 + CA + PREC_AUG +(1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+ 	LM.la_TREE <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+ 	LM.la_PHASE <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase:Orientation) + (1|Phase:Level), data=input.data)
+ 	LM.la_ORIENTATION <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Level), data=input.data)
+ 	LM.la_LEVEL <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Phase) + (1|Phase:Orientation) , data=input.data)
+
+	Var_full <- data.frame(VarCorr(LM.ks)); colnames(Var_full) <- c("factor", "var1", "var2", "Variance_FULL", "Std.Dev_FULL")
+	Var_CA <- data.frame(VarCorr(LM.la_CA)); colnames(Var_CA) <- c("factor", "var1", "var2", "Variance_CA", "Std.Dev_CA")
+	Var_PREC <- data.frame(VarCorr(LM.la_PREC)); colnames(Var_PREC) <- c("factor", "var1", "var2", "Variance_PREC", "Std.Dev_PREC")
+	Var_TEMP <- data.frame(VarCorr(LM.la_TEMP)); colnames(Var_TEMP) <- c("factor", "var1", "var2", "Variance_TEMP", "Std.Dev_TEMP")
+
+	Var_TREE <- data.frame(VarCorr(LM.la_TREE))
+	Var_PHASE <- data.frame(VarCorr(LM.la_PHASE))
+	Var_ORIENTATION <- data.frame(VarCorr(LM.la_ORIENTATION))
+	Var_LEVEL <- data.frame(VarCorr(LM.la_LEVEL))
+
+
+	Var_full <- cbind(Var_full[-c(3)], Var_CA[c(4:5)], Var_PREC[c(4:5)], Var_TEMP[c(4:5)])
+	effects[1,3] <- 100 * (Var_full[5, "Variance_CA"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_CA"]  
+	effects[2,3] <- 100 * (Var_full[5, "Variance_PREC"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_PREC"]  
+	effects[3,3] <- 100 * (Var_full[5, "Variance_TEMP"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_TEMP"] 
+
+	effects[4,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_TREE[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
+	effects[5,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_PHASE[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
+	effects[6,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_ORIENTATION[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
+	effects[7,3] <- 100 * (sum(Var_full[c(1:4), "Variance_FULL"]) - sum(Var_LEVEL[c(1:3), 4])) / sum(Var_TREE[c(1:3), 4])
+
+
+
+return(list(fixf=fixf, ranf=ranf, detremination=R2, effects=effects))
 
 }
 
+
+
 MODEL(Data.Exh.1)
-
-var(input.data$LumenArea)
-Var_Random_effect <- as.numeric(VarCorr(LM))
-Var_Residual <- attr(VarCorr(LM), "sc")^2
-Var_Fix_effect <- var(predict(glm(LumenArea ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT, data=input.data, method="REML")))
-
-sum(Var_Random_effect) + Var_Fix_effect + Var_Residual
-
 MODEL(Data.Zas.1)
 MODEL(Data.Dek.1)
 MODEL(Data.Nak.1)
@@ -205,70 +344,3 @@ MODEL(rbind(Data.Zas.1, Data.Zas.2))
 MODEL(rbind(Data.Dek.1, Data.Dek.2))
 MODEL(rbind(Data.Nak.1, Data.Nak.2))
 MODEL(rbind(Data.Jiz.1, Data.Jiz.2))
-
-
-##########################################
-#### Urceni plochy mereneho polygonu #####
-##########################################
-library(concaveman); library(sp)
-
-AREA.1 <- experiment1[c("SampleId", "Cell.", "Year", "LumenArea", "HorizontalPosition", "VerticalPosition")]
-
-
-
-# Pokus
-subset <- subset(AREA.1, subset=AREA.1$SampleId=="2_jizJ_1" & AREA.1$Year==2010) # Vyber konkretniho letokruhu
-
-body <- data.matrix(subset[c("HorizontalPosition", "VerticalPosition")])
-obrys <- concaveman(body, concavity=3) # Pomoci funkce vyberu obrysove body podel okraju merene casti letokruhu
-
-Ps <- Polygon(obrys, hole=F)
-Ps1 <- SpatialPolygons(list(Polygons(list(Ps), ID = "a"))) # Vytvorim SpatialPolygon
-
-if ((Ps@area == Ps1@polygons[[1]]@area) & (Ps@area == Ps1@polygons[[1]]@Polygons[[1]]@area)) {rozloha <- Ps@area}
-
-plot(body); title(paste("Vzorek", "2_jizJ_1", "v roce", "2010"))
-plot(Ps1, axes=T, add=T)
-
-# Priprava automatizace
-######################################
-
-Plocha1 <- PLOCHA.LETOKRUHU(experiment1)
-
-PLOCHA.LETOKRUHU <- function (VSTUP) {
-
-VYSTUP <- data.frame(Id=unique(paste(VSTUP$SampleId, VSTUP$Year)), SampleId=NA, Year=NA, Plocha=NA) # Priprava vystupniho datoveho souboru
-VYSTUP["SampleId"] <- substring(VYSTUP$Id, 1, 8); VYSTUP["Year"] <- as.numeric(substring(VYSTUP$Id, 10, 13))
-VYSTUP <- VYSTUP[c("SampleId", "Year", "Plocha")]
-
-for (vzorek in unique(as.character(VSTUP$SampleId))) {
-
-	subset.1 <- subset(VSTUP, subset=VSTUP$SampleId==vzorek)
-	
-	for (rok in unique(subset.1$Year)) {
-		
-		rozloha <- NA
-		subset.2 <- subset(subset.1, subset=subset.1$Year==rok) 
-
-		body <- data.matrix(subset.2[c("HorizontalPosition", "VerticalPosition")])
-		obrys <- concaveman(body, concavity=3) # Pomoci funkce vyberu obrysove body podel okraju merene casti letokruhu
-
-		Ps <- Polygon(obrys, hole=F)
-		Ps1 <- SpatialPolygons(list(Polygons(list(Ps), ID = "a"))) # Vytvorim SpatialPolygon
-
-		if ((Ps@area == Ps1@polygons[[1]]@area) & (Ps@area == Ps1@polygons[[1]]@Polygons[[1]]@area)) {rozloha <- Ps@area} # Ze spatial polygon vytahnu udaj o rozloze
-		ulozit <- VYSTUP$SampleId==vzorek & VYSTUP$Year==rok # Kam se ma vypoctena hodnota rozlohy ulozit
-		VYSTUP[ulozit, 3] <- rozloha
-
-		plot(body); title(paste("Vzorek", vzorek, "v roce", rok)) # Vykresleni a ulozeni grafu
-		plot(Ps1, axes=T, add=T)
-		png(filename=paste("D:/tumajer/#Brizy/Rskript/Obrazky_letokruhu/1/", vzorek, ":", rok, ".png", sep=""))
-		dev.off()
-
-		}
-	}
-
-return(VYSTUP)
-}
-
-
