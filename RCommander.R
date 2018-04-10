@@ -298,7 +298,7 @@ MODEL <- function(input.data) {
  	LM.la_PREC <- lmer(Ks ~ 1 + CA  + TEMP_pAUG_pOCT + (1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level)  + (1|Experiment), data=input.data)
  	LM.la_TEMP <- lmer(Ks ~ 1 + CA + PREC_AUG + (1|Tree) + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level)  + (1|Experiment), data=input.data)
  	LM.la_TREE <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Phase) + (1|Phase:Orientation) + (1|Phase:Level) + (1|Experiment), data=input.data)
- 	LM.la_PHASE <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Experiment:Tree) + (1|Phase:Orientation) + (1|Phase:Level) , data=input.data)
+ 	LM.la_PHASE <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Tree) + (1|Orientation) + (1|Level) + (1|Experiment), data=input.data)
  	LM.la_ORIENTATION <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Tree) + (1|Phase) + (1|Phase:Level) + (1|Experiment) , data=input.data)
  	LM.la_LEVEL <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Tree) + (1|Phase) + (1|Phase:Orientation)  + (1|Experiment), data=input.data)
 
@@ -339,7 +339,7 @@ MODEL <- function(input.data) {
 
 
 	# Problem s nepresne prirazenymi NA radky
-	Var_full <- cbind(Var_full[-c(3)], Var_CA[c(4:5)], Var_PREC[c(4:5)], Var_TEMP[c(4:5)], rbind(NA, Var_TREE[c(4:5)]), rbind(NA,NA, Var_PHASE[c(4:5)]), rbind(NA, Var_ORIENTATION[c(4:5)]), rbind(NA, Var_LEVEL[c(4:5)]), Var_CLIMATE[c(4:5)], rbind(NA,NA,NA, Var_GEOMORPH[c(4:5)]), rbind(NA,Var_EXPERIMENT[c(4:5)]))
+	Var_full <- cbind(Var_full[-c(3)], Var_CA[c(4:5)], Var_PREC[c(4:5)], Var_TEMP[c(4:5)], rbind(NA, Var_TREE[c(4:5)]), rbind(NA, Var_PHASE[c(4:5)]), rbind(NA, Var_ORIENTATION[c(4:5)]), rbind(NA, Var_LEVEL[c(4:5)]), Var_CLIMATE[c(4:5)], rbind(NA,NA,NA, Var_GEOMORPH[c(4:5)]), rbind(NA,Var_EXPERIMENT[c(4:5)]))
 	effects[1,3] <- 100 * (Var_full[5, "Variance_CA"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_CA"]  
 	effects[2,3] <- 100 * (Var_full[5, "Variance_PREC"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_PREC"]  
 	effects[3,3] <- 100 * (Var_full[5, "Variance_TEMP"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_TEMP"] 
@@ -393,26 +393,175 @@ MODEL <- function(input.data) {
 
 	legend(range(modely.vystup.agg$Year), c(0,30), c("FULL", "CA", "PREC", "TEMP", "TREE", "PHASE", "ORIENT", "LEVEL", "CLIMATE", "GEOMORPH", "EXPERIMENT"), cex=0.8, col=colors, lty=1, title="MODEL")
 
+#####################################################################################
+# Ulozeni vysledku
+
+	write.table(fixf, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/fixf.txt", sep="\t", col.names=TRUE, row.names=TRUE, quote=TRUE, na="NA")
+	write.table(ranf, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/ranf.txt", sep="\t", col.names=TRUE, row.names=FALSE, quote=TRUE, na="NA")
+	write.table(R2, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/R2.txt", sep="\t", col.names=TRUE, row.names=FALSE, quote=TRUE, na="NA")
+	write.table(modely.vystup, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/modely.txt", sep="\t", col.names=TRUE, row.names=FALSE, quote=TRUE, na="NA")
+	write.table(effects, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/effects.txt", sep="\t", col.names=TRUE, row.names=TRUE, quote=TRUE, na="NA")
+
+
 return(list(fixf=fixf, ranf=ranf, determination=R2, modely=modely.vystup, effects=effects))
 
 }
 
 
-MODEL(Data.Exh.1)
-MODEL(Data.Zas.1)
-MODEL(Data.Dek.1)
-MODEL(Data.Nak.1)
-MODEL(Data.Jiz.1)
 
-MODEL(Data.Exh.2)
-MODEL(Data.Zas.2)
-MODEL(Data.Dek.2)
-MODEL(Data.Nak.2)
-MODEL(Data.Jiz.2)
-MODEL(Data.Ref.2)
-
-MODEL(rbind(Data.Exh.1, Data.Exh.2))$effects
+MODEL(rbind(Data.Exh.1, Data.Exh.2))
 MODEL(rbind(Data.Zas.1, Data.Zas.2))
 MODEL(rbind(Data.Dek.1, Data.Dek.2))
 MODEL(rbind(Data.Nak.1, Data.Nak.2))
 MODEL(rbind(Data.Jiz.1, Data.Jiz.2))
+
+
+########## varianta modelu pro Referencni stromy
+#####################################################################################
+#####################################################################################
+#####################################################################################
+
+
+Data.2.prekodovanoREF <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2_prekodovanoREF.xlsx", rownames=FALSE, header=TRUE, na="", sheet="series", stringsAsFactors=TRUE) # Vetsina datovych podkladu
+cambial.age.prekodovanoREF <- readXL("D:/tumajer/#Brizy/Rskript/vystupy/2_prekodovanoREF.xlsx", rownames=FALSE, header=TRUE, na="", sheet="camb.age2", stringsAsFactors=TRUE) # Kambialni stari jednotlivych letokruhu
+Data.2.prekodovanoREF <- merge(Data.2.prekodovanoREF, cambial.age.prekodovanoREF, by=c("SampleId", "Year"))
+Data.2.prekodovanoREF <- merge(Data.2.prekodovanoREF, klimadata, by=c("Year"), all.x=T)
+
+input.data <- Data.2.prekodovanoREF
+
+input.data$Orientation
+#####################################################################################
+# Vypocet modelu a jejich statistik - dale se pracuje pouze s modelem Ks
+
+   	LM.la <- lmer(LumenArea ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) + (1|Orientation)  , data=input.data)
+   	LM.tva <- lmer(TVA_perc ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) +  (1|Orientation) , data=input.data)
+   	LM.vd <- lmer(VD_mm2 ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) +  (1|Orientation)  , data=input.data)
+   	LM.ks <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) +  (1|Orientation)  , data=input.data)
+
+	ranf <- merge(data.frame(ranef(LM.la)), data.frame(ranef(LM.tva)), by=c("grpvar", "term", "grp"), all=T)
+	ranf <- merge(ranf, data.frame(ranef(LM.vd)), by=c("grpvar", "term", "grp"), all=T)
+	ranf <- merge(ranf, data.frame(ranef(LM.ks)), by=c("grpvar", "term", "grp"), all=T)
+	colnames(ranf) <- c("grpvar", "term", "grp", "LA", "TVA", "VD", "Ks")
+
+	fixf <- cbind(data.frame(fixef(LM.la)), data.frame(fixef(LM.tva)), data.frame(fixef(LM.vd)), data.frame(fixef(LM.ks)))
+	colnames(fixf) <- c("LA", "TVA", "VD", "Ks")
+
+	R2 <- cbind(t(sem.model.fits(LM.la)), t(sem.model.fits(LM.tva)), t(sem.model.fits(LM.vd)), t(sem.model.fits(LM.ks)))
+	colnames(R2) <- c("LA", "TVA", "VD", "Ks")
+
+#####################################################################################
+# 1] Vypocet lokalnich predictor effects podle Peugh (2010): Journal of School Psychology 48: 85-112
+# 2] Vypocet zmeny pseudo-R2 pri vypusteni prediktoru
+
+	effects <- data.frame(Variable=c("CA", "PREC", "TEMP", "TREE", "PHASE", "ORIENTATION", "LEVEL","PREC+TEMP", "PHASE+ORIENT+LEVEL", "EXPERIMENT"), Type=c("fixed", "fixed", "fixed", "random", "random", "random", "random", "2fixed", "3random", "random"), Effect=NA, pseudoR2=NA)
+
+ 	LM.la_CA <- lmer(Ks ~ 1 +  PREC_AUG + TEMP_pAUG_pOCT + (1|Tree) + (1|Orientation)  , data=input.data)
+ 	LM.la_PREC <- lmer(Ks ~ 1 + CA  + TEMP_pAUG_pOCT + (1|Tree) + (1|Orientation)  , data=input.data)
+ 	LM.la_TEMP <- lmer(Ks ~ 1 + CA + PREC_AUG + (1|Tree) + (1|Orientation)   , data=input.data)
+ 	LM.la_TREE <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +  (1|Orientation)  , data=input.data)
+ 	LM.la_PHASE <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Tree) + (1|Orientation)  , data=input.data)
+ 	LM.la_ORIENTATION <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Tree)   , data=input.data)
+ 	LM.la_LEVEL <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Tree) + (1|Orientation)  , data=input.data)
+
+ 	LM.la_CLIMATE <- lmer(Ks ~ 1 + CA + (1|Tree) + (1|Orientation) + (1|Phase)  , data=input.data)
+	LM.la_GEOMORPH <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT + (1|Tree) , data=input.data)
+
+   	LM.la_EXPERIMENT <- lmer(Ks ~ 1 + CA + PREC_AUG + TEMP_pAUG_pOCT +(1|Tree) +  (1|Orientation) , data=input.data)
+
+	
+	pseudoR2_full <- cor(predict(LM.ks), input.data$Ks)^2
+	pseudoR2_CA <- cor(predict(LM.la_CA), input.data$Ks)^2
+	pseudoR2_PREC <- cor(predict(LM.la_PREC), input.data$Ks)^2
+	pseudoR2_TEMP <- cor(predict(LM.la_TEMP), input.data$Ks)^2
+	pseudoR2_TREE <- cor(predict(LM.la_TREE), input.data$Ks)^2
+	pseudoR2_PHASE <- cor(predict(LM.la_PHASE), input.data$Ks)^2
+	pseudoR2_ORIENTATION <- cor(predict(LM.la_ORIENTATION), input.data$Ks)^2
+	pseudoR2_LEVEL <- cor(predict(LM.la_LEVEL), input.data$Ks)^2
+	pseudoR2_CLIMATE <- cor(predict(LM.la_CLIMATE), input.data$Ks)^2
+	pseudoR2_GEOMORPH <- cor(predict(LM.la_GEOMORPH), input.data$Ks)^2
+	pseudoR2_EXPERIMENT <- cor(predict(LM.la_EXPERIMENT), input.data$Ks)^2
+
+
+
+
+	Var_full <- data.frame(VarCorr(LM.ks)); colnames(Var_full) <- c("factor", "var1", "var2", "Variance_FULL", "Std.Dev_FULL")
+	Var_CA <- data.frame(VarCorr(LM.la_CA)); colnames(Var_CA) <- c("factor", "var1", "var2", "Variance_CA", "Std.Dev_CA")
+	Var_PREC <- data.frame(VarCorr(LM.la_PREC)); colnames(Var_PREC) <- c("factor", "var1", "var2", "Variance_PREC", "Std.Dev_PREC")
+	Var_TEMP <- data.frame(VarCorr(LM.la_TEMP)); colnames(Var_TEMP) <- c("factor", "var1", "var2", "Variance_TEMP", "Std.Dev_TEMP")
+
+	Var_TREE <- data.frame(VarCorr(LM.la_TREE)); colnames(Var_TREE) <- c("factor", "var1", "var2", "Variance_TREE", "Std.Dev_TREE")
+	Var_PHASE <- data.frame(VarCorr(LM.la_PHASE)); colnames(Var_PHASE) <- c("factor", "var1", "var2", "Variance_PHASE", "Std.Dev_PHASE")
+	Var_ORIENTATION <- data.frame(VarCorr(LM.la_ORIENTATION)); colnames(Var_ORIENTATION) <- c("factor", "var1", "var2", "Variance_ORIENTATION", "Std.Dev_ORIENTATION")
+	Var_LEVEL <- data.frame(VarCorr(LM.la_LEVEL)); colnames(Var_LEVEL) <- c("factor", "var1", "var2", "Variance_LEVEL", "Std.Dev_LEVEL")
+
+	Var_CLIMATE <- data.frame(VarCorr(LM.la_CLIMATE)); colnames(Var_CLIMATE) <- c("factor", "var1", "var2", "Variance_CLIMATE", "Std.Dev_CLIMATE")
+	Var_GEOMORPH <- data.frame(VarCorr(LM.la_GEOMORPH)); colnames(Var_GEOMORPH) <- c("factor", "var1", "var2", "Variance_GEOMORPH", "Std.Dev_GEOMORPH")
+	Var_EXPERIMENT <- data.frame(VarCorr(LM.la_EXPERIMENT )); colnames(Var_EXPERIMENT) <- c("factor", "var1", "var2", "Variance_EXPERIMENT", "Std.Dev_EXPERIMENT")
+
+
+	# Problem s nepresne prirazenymi NA radky
+	Var_full <- cbind(Var_full[-c(3)], Var_CA[c(4:5)], Var_PREC[c(4:5)], Var_TEMP[c(4:5)], rbind(NA, Var_TREE[c(4:5)]), Var_PHASE[c(4:5)], rbind(NA, Var_ORIENTATION[c(4:5)]), Var_LEVEL[c(4:5)], Var_CLIMATE[c(3:5),c(4:5)], rbind(NA, Var_GEOMORPH[c(4:5)]), Var_EXPERIMENT[c(4:5)])
+	effects[1,3] <- 100 * (Var_full[5, "Variance_CA"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_CA"]  
+	effects[2,3] <- 100 * (Var_full[5, "Variance_PREC"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_PREC"]  
+	effects[3,3] <- 100 * (Var_full[5, "Variance_TEMP"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_TEMP"] 
+
+	effects[4,3] <- 100 * (Var_full[5, "Variance_TREE"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_TREE"]
+	effects[5,3] <- 100 * (Var_full[5, "Variance_PHASE"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_PHASE"]
+	effects[6,3] <- 100 * (Var_full[5, "Variance_ORIENTATION"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_ORIENTATION"]
+	effects[7,3] <- 100 * (Var_full[5, "Variance_LEVEL"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_LEVEL"]
+
+	effects[8,3] <- 100 * (Var_full[5, "Variance_CLIMATE"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_CLIMATE"]
+	effects[9,3] <- 100 * (Var_full[5, "Variance_GEOMORPH"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_GEOMORPH"]
+	effects[10,3] <- 100 * (Var_full[5, "Variance_EXPERIMENT"] - Var_full[5, "Variance_FULL"]) / Var_full[5, "Variance_EXPERIMENT"]
+
+
+	effects[1,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_CA) / pseudoR2_full
+	effects[2,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_PREC) / pseudoR2_full
+	effects[3,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_TEMP) / pseudoR2_full
+
+	effects[4,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_TREE) / pseudoR2_full
+	effects[5,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_PHASE) / pseudoR2_full
+	effects[6,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_ORIENTATION) / pseudoR2_full
+	effects[7,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_LEVEL) / pseudoR2_full
+
+	effects[8,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_CLIMATE) / pseudoR2_full
+	effects[9,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_GEOMORPH) / pseudoR2_full
+	effects[10,c("pseudoR2")] <- 100 * (pseudoR2_full - pseudoR2_EXPERIMENT) / pseudoR2_full
+
+
+#####################################################################################
+# Tabulka pozorovanych a modelovanych hodnot (pro plny model i modely s vypustenymi promennymi)
+
+	modely.vystup <- cbind(input.data[c("Year", "SampleId", "Ks")], FULL=predict(LM.ks), CA=predict(LM.la_CA), PREC=predict(LM.la_PREC), TEMP=predict(LM.la_TEMP), TREE=predict(LM.la_TREE), PHASE=predict(LM.la_PHASE), ORIENTATION=predict(LM.la_ORIENTATION), LEVEL=predict(LM.la_LEVEL), CLIMATE=predict(LM.la_CLIMATE), GEOMORPH=predict(LM.la_GEOMORPH), EXPERIMENT=predict(LM.la_EXPERIMENT))	
+	modely.vystup.agg <- aggregate(modely.vystup, by=list(Year1=modely.vystup$Year), FUN=mean)
+
+	par(mfrow=c(1,1))
+	plot(modely.vystup.agg$Ks~modely.vystup.agg$Year, ylim=c(0,30), xlab="Rok", ylab="Ks")
+	colors <- rainbow(11)
+	lines(modely.vystup.agg$Ks~modely.vystup.agg$Year, lwd=3)
+	lines(modely.vystup.agg$FULL~modely.vystup.agg$Year, col=colors[1], lwd=3)
+	lines(modely.vystup.agg$CA~modely.vystup.agg$Year, col=colors[2])
+	lines(modely.vystup.agg$PREC~modely.vystup.agg$Year, col=colors[3])
+	lines(modely.vystup.agg$TEMP~modely.vystup.agg$Year, col=colors[4])
+	lines(modely.vystup.agg$TREE~modely.vystup.agg$Year, col=colors[5])
+	lines(modely.vystup.agg$PHASE~modely.vystup.agg$Year, col=colors[6])
+	lines(modely.vystup.agg$ORIENTATION~modely.vystup.agg$Year, col=colors[7])
+	lines(modely.vystup.agg$LEVEL~modely.vystup.agg$Year, col=colors[8])
+	lines(modely.vystup.agg$CLIMATE~modely.vystup.agg$Year, col=colors[9])
+	lines(modely.vystup.agg$GEOMORPH~modely.vystup.agg$Year, col=colors[10])
+	lines(modely.vystup.agg$EXPERIMENT~modely.vystup.agg$Year, col=colors[11])
+
+
+	legend(range(modely.vystup.agg$Year), c(0,30), c("FULL", "CA", "PREC", "TEMP", "TREE", "PHASE", "ORIENT", "LEVEL", "CLIMATE", "GEOMORPH", "EXPERIMENT"), cex=0.8, col=colors, lty=1, title="MODEL")
+
+#####################################################################################
+effects
+
+# Ulozeni vysledku
+
+	write.table(fixf, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/fixf.txt", sep="\t", col.names=TRUE, row.names=TRUE, quote=TRUE, na="NA")
+	write.table(ranf, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/ranf.txt", sep="\t", col.names=TRUE, row.names=FALSE, quote=TRUE, na="NA")
+	write.table(R2, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/R2.txt", sep="\t", col.names=TRUE, row.names=FALSE, quote=TRUE, na="NA")
+	write.table(modely.vystup, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/modely.txt", sep="\t", col.names=TRUE, row.names=FALSE, quote=TRUE, na="NA")
+	write.table(effects, "D:/tumajer/#Brizy/Rskript/vystupy/LMM/effects.txt", sep="\t", col.names=TRUE, row.names=TRUE, quote=TRUE, na="NA")
+
